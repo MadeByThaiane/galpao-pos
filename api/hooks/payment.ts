@@ -55,23 +55,40 @@ export const useStartTerminalCharge = () => {
         amount: input.amount,
       });
 
-      const result = await sdk.client.fetch<PaymentCollectionResponse>(
-        `/admin/payment-collections/${payment_collection.id}/payment-sessions`,
-        {
-          method: 'POST',
-          body: {
-            // Medusa registers custom payment providers under
-            // pp_{class.identifier}_{config.id from medusa-config.ts}, not
-            // the bare id - confirmed via the payment_provider entity on
-            // the backend. Passing "sumup" alone throws
-            // AwilixResolutionError: Could not resolve 'sumup'.
-            provider_id: 'pp_sumup_sumup',
-            data: { reader_id: input.readerId },
+      try {
+        const result = await sdk.client.fetch<PaymentCollectionResponse>(
+          `/admin/payment-collections/${payment_collection.id}/payment-sessions`,
+          {
+            method: 'POST',
+            body: {
+              // Medusa registers custom payment providers under
+              // pp_{class.identifier}_{config.id from medusa-config.ts}, not
+              // the bare id - confirmed via the payment_provider entity on
+              // the backend. Passing "sumup" alone throws
+              // AwilixResolutionError: Could not resolve 'sumup'.
+              provider_id: 'pp_sumup_sumup',
+              data: { reader_id: input.readerId },
+            },
           },
-        },
-      );
+        );
 
-      return result.payment_collection;
+        return result.payment_collection;
+      } catch (error) {
+        // Session creation (triggers our initiatePayment on the backend)
+        // can fail after the collection itself was already created - e.g.
+        // SumUp's READER_BUSY if a previous checkout is still active.
+        // Confirmed live 2026-07-06: when this throws, this whole mutation
+        // rejects before onSuccess ever runs, so the caller's component
+        // state never learns this collection's id and can't clean it up on
+        // the next retry - it was piling up as a permanent orphan dragging
+        // the order's aggregate payment status down to
+        // "partially authorized". Clean it up right here instead of
+        // relying on the caller to track an id it never received.
+        await sdk.client
+          .fetch(`/admin/payment-collections/${payment_collection.id}/terminal-charge`, { method: 'DELETE' })
+          .catch(() => {});
+        throw error;
+      }
     },
   });
 };
@@ -110,15 +127,23 @@ export const usePaymentCollectionStatus = (paymentCollectionId: string | undefin
 };
 
 // Cancels an in-flight terminal charge (customer walked away, salesperson
-// tapped Cancel) - deletePayment on the provider terminates the reader
-// checkout, per THA-10.
+// tapped Cancel, or a retry needs to clear a previous attempt first).
+//
+// Confirmed live 2026-07-06: Medusa's core DELETE /admin/payment-collections/:id
+// only unlinks the collection from the order - it never actually terminates
+// the checkout on the SumUp reader, so the next retry hit SumUp's
+// "READER_BUSY" error for ~40s until the abandoned checkout expired on its
+// own. Uses the backend's custom .../terminal-charge route instead, which
+// terminates the reader checkout first.
 export const useCancelTerminalCharge = () => {
   const sdk = useMedusaSdk();
 
   return useMutation({
     mutationKey: ['payment', 'cancel-terminal-charge'],
     mutationFn: async (paymentCollectionId: string) => {
-      await sdk.admin.paymentCollection.delete(paymentCollectionId);
+      await sdk.client.fetch(`/admin/payment-collections/${paymentCollectionId}/terminal-charge`, {
+        method: 'DELETE',
+      });
     },
   });
 };
