@@ -35,6 +35,10 @@ type PaymentCollectionResponse = {
   };
 };
 
+type PaymentCollectionStatusResponse = {
+  payment_sessions: { id: string; provider_id: string; status: PaymentSessionStatus; data?: Record<string, unknown> }[];
+};
+
 // Starts a terminal charge: creates a payment collection for the order
 // (draft orders share the order table in Medusa v2, so the draft order id
 // works directly), then a payment session on the "sumup" provider with the
@@ -75,17 +79,24 @@ export const useStartTerminalCharge = () => {
 // Poll target while waiting for the reader's webhook result to land -
 // there is no push channel to a mobile client, so this is the practical
 // way to notice a completed/failed charge.
+//
+// Confirmed live 2026-07-06: Medusa v2 core has no GET route at all for a
+// single payment collection (/admin/payment-collections/:id only
+// implements DELETE) - this was 404ing on every single poll regardless of
+// the payment's actual status, which is why charges appeared to hang on
+// "Waiting for card..." forever even once the backend correctly authorized
+// them. Hits our own custom .../status route instead (see backend's
+// api/admin/payment-collections/[id]/status/route.ts).
 export const usePaymentCollectionStatus = (paymentCollectionId: string | undefined, enabled: boolean) => {
   const sdk = useMedusaSdk();
 
   return useQuery({
     queryKey: ['payment-collection', paymentCollectionId],
     queryFn: async () => {
-      const result = await sdk.client.fetch<PaymentCollectionResponse>(
-        `/admin/payment-collections/${paymentCollectionId}`,
-        { query: { fields: '+payment_sessions.*' } },
+      const result = await sdk.client.fetch<PaymentCollectionStatusResponse>(
+        `/admin/payment-collections/${paymentCollectionId}/status`,
       );
-      return result.payment_collection;
+      return result;
     },
     enabled: enabled && !!paymentCollectionId,
     refetchInterval: (query) => {
