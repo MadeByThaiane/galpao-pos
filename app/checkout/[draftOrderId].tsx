@@ -1,9 +1,4 @@
-import {
-  DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
-  useCompleteDraftOrder,
-  useCurrentDraftOrder,
-  useDraftOrderOrOrder,
-} from '@/api/hooks/draft-orders';
+import { DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL, useCurrentDraftOrder, useDraftOrderOrOrder } from '@/api/hooks/draft-orders';
 import { ShoppingCart } from '@/components/icons/shopping-cart';
 import { InfoBanner } from '@/components/InfoBanner';
 import { CheckoutSkeleton } from '@/components/skeletons/CheckoutSkeleton';
@@ -58,7 +53,6 @@ export default function CheckoutScreen() {
   const { draftOrderId } = useLocalSearchParams<{ draftOrderId: string }>();
   const settings = useSettings();
   const draftOrder = useDraftOrderOrOrder(draftOrderId);
-  const completeOrder = useCompleteDraftOrder(draftOrderId);
 
   const renderItem = React.useCallback<ListRenderItem<AdminOrderLineItem>>(
     ({ item }) => <DraftOrderItem item={item} />,
@@ -216,21 +210,17 @@ export default function CheckoutScreen() {
         </View>
 
         <View className="pb-safe flex-row gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onPress={() => router.back()}
-            disabled={!isDraftOrder || completeOrder.isPending}
-          >
+          <Button variant="outline" className="flex-1" onPress={() => router.back()} disabled={!isDraftOrder}>
             Back to Cart
           </Button>
           <Button
             className="flex-1"
-            onPress={() => completeOrder.mutate()}
+            onPress={() =>
+              router.push({ pathname: '/checkout/payment/[draftOrderId]', params: { draftOrderId } })
+            }
             disabled={!isDraftOrder}
-            isPending={completeOrder.isPending}
           >
-            Complete Order
+            Charge
           </Button>
         </View>
       </Layout>

@@ -1,15 +1,39 @@
 import { DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL } from '@/api/hooks/draft-orders';
 import { useOrder } from '@/api/hooks/orders';
+import { useMoloniReceipt } from '@/api/hooks/receipt';
 import { InfoBanner } from '@/components/InfoBanner';
 import { LoadingBanner } from '@/components/LoadingBanner';
+import { Button } from '@/components/ui/Button';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { FulfillmentStatus, OrderStatus, PaymentStatus } from '@/components/ui/OrderStatus';
 import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
 import { AdminOrder, AdminOrderLineItem } from '@medusajs/types';
+import * as WebBrowser from 'expo-web-browser';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { FlatList, Image, TouchableOpacity, View } from 'react-native';
+
+const ReceiptSection: React.FC<{ orderId: string }> = ({ orderId }) => {
+  const receipt = useMoloniReceipt(orderId);
+
+  return (
+    <View className="mb-4 gap-2">
+      <Text className="text-xl">Receipt</Text>
+      {receipt.isLoading && <Text className="text-sm text-gray-300">Waiting for the fiscal invoice...</Text>}
+      {receipt.isError && (
+        <Text className="text-sm text-gray-300">
+          Invoice not available yet - it&apos;s generated a few seconds after checkout.
+        </Text>
+      )}
+      {receipt.data && (
+        <Button variant="outline" onPress={() => WebBrowser.openBrowserAsync(receipt.data.pdf_url)}>
+          View Receipt
+        </Button>
+      )}
+    </View>
+  );
+};
 
 const CustomerInformation: React.FC<{
   order: AdminOrder;
@@ -100,6 +124,7 @@ const OrderInformation: React.FC<{
           <FulfillmentStatus order={order} />
         </View>
       </View>
+      <ReceiptSection orderId={order.id} />
       <CustomerInformation order={order} />
       <Text className="mb-4 text-xl">Summary</Text>
       <View className="gap-2">
