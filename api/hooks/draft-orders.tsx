@@ -64,16 +64,47 @@ const useGetOrSetDraftOrderId = () => {
 
     const defaultCustomerId = await getOrSetDefaultCustomer();
 
+    // Confirmed live 2026-07-06: no VAT was ever computed on any POS sale.
+    // createOrderWorkflow (used by draftOrder.create) does try to compute
+    // tax lines immediately at creation time, but resolving a tax region
+    // needs a shipping address - and this call passed none, so it silently
+    // computed zero tax. Adding items later (order-edit-add-item) recomputes
+    // tax too, but by then still no address existed either, since it was
+    // only ever set in useCompleteDraftOrder at the very end of the flow,
+    // long after every tax-computation-triggering step had already run.
+    // Passing the stock location's own address here (same shape used later
+    // in useCompleteDraftOrder) lets it resolve the Portugal tax region from
+    // the very first tax calculation.
+    const stockLocation = settings.data?.stock_location;
+
     const newDraftOrder = await sdk.admin.draftOrder.create({
       region_id: settings.data?.region?.id,
       sales_channel_id: settings.data?.sales_channel?.id,
       customer_id: defaultCustomerId,
+      shipping_address: stockLocation
+        ? {
+            company: stockLocation.name,
+            address_1: stockLocation.address?.address_1 ?? undefined,
+            address_2: stockLocation.address?.address_2 ?? undefined,
+            postal_code: stockLocation.address?.postal_code ?? undefined,
+            city: stockLocation.address?.city ?? undefined,
+            province: stockLocation.address?.province ?? undefined,
+            country_code: stockLocation.address?.country_code ?? undefined,
+            phone: stockLocation.address?.phone ?? undefined,
+          }
+        : undefined,
     });
 
     await SecureStore.setItemAsync(DRAFT_ORDER_ID_STORAGE_KEY, newDraftOrder.draft_order.id);
 
     return newDraftOrder.draft_order.id;
-  }, [getOrSetDefaultCustomer, sdk, settings.data?.region?.id, settings.data?.sales_channel?.id]);
+  }, [
+    getOrSetDefaultCustomer,
+    sdk,
+    settings.data?.region?.id,
+    settings.data?.sales_channel?.id,
+    settings.data?.stock_location,
+  ]);
 };
 
 export const useDraftOrderOrOrder = (draftOrderId: string) => {
