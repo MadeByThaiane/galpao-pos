@@ -57,17 +57,34 @@ export default function PaymentScreen() {
 
   const handleChargeTerminal = (readerId: string) => {
     setFailed(null);
-    startCharge.mutate(
-      { orderId: draftOrderId, amount: total, readerId },
-      {
-        onSuccess: (paymentCollection) => {
-          setPaymentCollectionId(paymentCollection.id);
+
+    const proceed = () => {
+      startCharge.mutate(
+        { orderId: draftOrderId, amount: total, readerId },
+        {
+          onSuccess: (paymentCollection) => {
+            setPaymentCollectionId(paymentCollection.id);
+          },
+          onError: (error) => {
+            showErrorToast(error);
+          },
         },
-        onError: (error) => {
-          showErrorToast(error);
-        },
-      },
-    );
+      );
+    };
+
+    // Retrying (picking a terminal again after a failed/abandoned attempt)
+    // used to leave the previous payment collection linked to the order
+    // forever - confirmed live 2026-07-06, it shows up as an orphaned
+    // "not_paid" collection that permanently drags the order's aggregate
+    // payment status down to "partially authorized" even once a later
+    // attempt succeeds. Clean up the old one first; if the delete itself
+    // fails (Medusa only allows deleting a collection while its status is
+    // still not_paid), don't block the retry over it.
+    if (paymentCollectionId) {
+      cancelCharge.mutate(paymentCollectionId, { onSettled: proceed });
+    } else {
+      proceed();
+    }
   };
 
   const handleCancel = () => {
