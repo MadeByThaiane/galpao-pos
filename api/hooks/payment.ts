@@ -56,7 +56,12 @@ export const useStartTerminalCharge = () => {
         {
           method: 'POST',
           body: {
-            provider_id: 'sumup',
+            // Medusa registers custom payment providers under
+            // pp_{class.identifier}_{config.id from medusa-config.ts}, not
+            // the bare id - confirmed via the payment_provider entity on
+            // the backend. Passing "sumup" alone throws
+            // AwilixResolutionError: Could not resolve 'sumup'.
+            provider_id: 'pp_sumup_sumup',
             data: { reader_id: input.readerId },
           },
         },
