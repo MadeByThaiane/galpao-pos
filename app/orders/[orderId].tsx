@@ -125,6 +125,16 @@ const OrderInformation: React.FC<{
         </View>
       </View>
       <ReceiptSection orderId={order.id} />
+      {(order.payment_status === 'captured' || order.payment_status === 'partially_captured') && (
+        <View className="mb-4">
+          <Button
+            variant="outline"
+            onPress={() => router.push({ pathname: '/returns/[orderId]', params: { orderId: order.id } })}
+          >
+            Process Return
+          </Button>
+        </View>
+      )}
       <CustomerInformation order={order} />
       <Text className="mb-4 text-xl">Summary</Text>
       <View className="gap-2">
