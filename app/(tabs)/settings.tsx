@@ -51,6 +51,10 @@ export default function SettingsScreen() {
         >
           {settings.data?.stock_location?.name || '—'}
         </Button>
+        <Text className="mb-4 text-2xl">Reports</Text>
+        <Button onPress={() => router.push('/settings/day-summary')} variant="outline" className="mb-8 justify-end">
+          Day Summary
+        </Button>
         <Text className="mb-4 text-2xl">Reset</Text>
         <Button
           variant="outline"
