@@ -73,6 +73,7 @@ function App() {
             fullScreenGestureShadowEnabled: false,
           }}
         />
+        <Stack.Screen name="returns/[orderId]" options={{ title: 'Process Return', headerShown: false }} />
         <Stack.Screen
           name="customer-lookup"
           options={{
